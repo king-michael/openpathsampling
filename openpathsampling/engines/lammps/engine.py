@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import simtk.unit as u
 
@@ -5,7 +6,13 @@ import openpathsampling as paths
 from openpathsampling.engines import DynamicsEngine
 from .snapshot import Snapshot
 
+from openpathsampling.engines.openmm.topology import MDTrajTopology
+
 from lammps import lammps
+
+import sys
+if sys.version_info > (3,):
+    basestring = str
 
 
 class LammpsEngine(DynamicsEngine):
@@ -26,9 +33,15 @@ class LammpsEngine(DynamicsEngine):
         'n_frames_max': 5000
     }
 
-    def __init__(self, inputs, options=None):
+    def __init__(self, inputs, options=None, topology=None):
 
         self.inputs = inputs
+
+        self.mdtraj_topology = None
+        if topology is not None:
+            topology = self._get_topology(topology)
+            self.mdtraj_topology = topology.mdtraj
+        self.topology = topology
 
         # Create new lammps instance
         self._lmp = lammps()
@@ -69,6 +82,25 @@ class LammpsEngine(DynamicsEngine):
 
         # TODO: so far we will always have an initialized system which we should change somehow
         self.initialized = True
+
+    @staticmethod
+    def _get_topology(topology):
+        # topology can be a filename or an MDTrajTopology
+        try:
+            import mdtraj as md
+        except ImportError:
+            raise RuntimeWarning("Missing MDTraj; topology keyword ignored")
+        else:
+            if isinstance(topology, MDTrajTopology):
+                return topology
+
+            if isinstance(topology, basestring) and os.path.isfile(topology):
+                topology = md.load(topology).topology
+
+            if isinstance(topology, md.Topology):
+                return MDTrajTopology(topology)
+            else:
+                return None  # may later allow other ways
 
     def command(self, *args, **kwargs):
         self._lmp.command(*args, **kwargs)
@@ -128,7 +160,8 @@ class LammpsEngine(DynamicsEngine):
     def to_dict(self):
         return {
             'inputs': self.inputs,
-            'options': self.options
+            'options': self.options,
+            'topology': self.topology
         }
 
     @property
@@ -178,3 +211,4 @@ class LammpsEngine(DynamicsEngine):
     @property
     def statics(self):
         return self.current_snapshot.statics
+
