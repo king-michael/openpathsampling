@@ -11,6 +11,7 @@ from openpathsampling.engines.openmm.topology import MDTrajTopology
 from lammps import lammps
 
 import sys
+
 if sys.version_info > (3,):
     basestring = str
 
@@ -33,7 +34,7 @@ class LammpsEngine(DynamicsEngine):
         'n_frames_max': 5000
     }
 
-    def __init__(self, inputs, options=None, topology=None, lmp_name="", lmp_cmdargs=None):
+    def __init__(self, inputs, options=None, topology=None, lmp_name=None, lmp_cmdargs=None):
         """
 
         Parameters
@@ -41,11 +42,11 @@ class LammpsEngine(DynamicsEngine):
         inputs
         options
         topology
-        lmp_name : str
-            Name of the LAMMPS library (default is "")
+        lmp_name : str or None
+            Name of the LAMMPS library (default is None)
 
             `lmp_name='gpu'` create a LAMMPS object using the `liblammps_gpu.so` library.
-        lmp_cmdargs : List(str)
+        lmp_cmdargs : List(str) or None
             command-line arguments passed to LAMMPS, e.g. list = ["-echo","screen"]
             or for gpu ['-sf', 'gpu', '-pk', 'gpu', '1']
 
@@ -229,3 +230,40 @@ class LammpsEngine(DynamicsEngine):
     def statics(self):
         return self.current_snapshot.statics
 
+    def minimize(self, etol=1e-6, ftol=1e-6, maxiter=100, maxeval=1000):
+        # type: (LammpsEngine, float, float, int, int) -> None
+        """
+        Energy minimization using a conjugated gradient.
+
+        LAMMPS-Syntax
+        -------------
+        `min_style cg`
+
+        `min_modify line quadratic`
+
+        `minimize {etol} {ftol} {maxiter} {maxiter}`
+
+        `reset_timestep 0`
+
+
+        Parameters
+        ----------
+        etol : float
+            stopping tolerance for force (force units)
+        ftol : float
+            stopping tolerance for force (force units)
+        maxiter : int
+            max iterations of minimizer
+        maxeval : int
+            max number of force/energy evaluations
+
+        """
+        self._lmp.commands_list(["min_style cg",
+                                 "min_modify line quadratic",
+                                 "minimize {etol} {ftol} {maxiter} {maxeval}".format(
+                                     etol=etol, ftol=ftol,
+                                     maxiter=maxiter, maxeval=maxeval),
+                                 "reset_timestep 0"])
+
+        # make sure that we get the minimized structure on request
+        self._current_snapshot = None
