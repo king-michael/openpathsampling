@@ -33,7 +33,24 @@ class LammpsEngine(DynamicsEngine):
         'n_frames_max': 5000
     }
 
-    def __init__(self, inputs, options=None, topology=None):
+    def __init__(self, inputs, options=None, topology=None, lmp_name="", lmp_cmdargs=None):
+        """
+
+        Parameters
+        ----------
+        inputs
+        options
+        topology
+        lmp_name : str
+            Name of the LAMMPS library (default is "")
+
+            `lmp_name='gpu'` create a LAMMPS object using the `liblammps_gpu.so` library.
+        lmp_cmdargs : List(str)
+            command-line arguments passed to LAMMPS, e.g. list = ["-echo","screen"]
+            or for gpu ['-sf', 'gpu', '-pk', 'gpu', '1']
+
+            see: https://lammps.sandia.gov/doc/Run_options.html
+        """
 
         self.inputs = inputs
 
@@ -44,7 +61,7 @@ class LammpsEngine(DynamicsEngine):
         self.topology = topology
 
         # Create new lammps instance
-        self._lmp = lammps()
+        self._lmp = lammps(name=lmp_name, cmdargs=lmp_cmdargs)
 
         # Execute the give script
         commands = inputs.splitlines()
