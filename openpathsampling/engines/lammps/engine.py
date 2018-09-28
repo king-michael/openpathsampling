@@ -206,6 +206,8 @@ class LammpsEngine(DynamicsEngine):
 
     @property
     def snapshot_timestep(self):
+        if 'timestep' not in self.options:
+            return self.n_steps_per_frame * self._lmp.get_thermo('dt')
         return self.n_steps_per_frame * self.options['timestep']
 
     def _build_current_snapshot(self):
