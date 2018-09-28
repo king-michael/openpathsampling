@@ -53,7 +53,7 @@ class LammpsEngine(DynamicsEngine):
             self._lmp.command(command)
 
         # self.command('compute thermo_ke all ke')
-        self.command('run 1')
+        self.command('run 0')
 
         template = self._get_snapshot(True)
 
