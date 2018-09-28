@@ -246,7 +246,8 @@ class LammpsEngine(DynamicsEngine):
         self._lmp.command('run ' + str(steps))
 
     def generate_next_frame(self):
-        self.run(self.n_steps_per_frame)
+        # disable pre & post processing for continues runs
+        self._lmp.command('run ' + str(self.n_steps_per_frame) + ' pre no post no')
         self._current_snapshot = None
         return self.current_snapshot
 
