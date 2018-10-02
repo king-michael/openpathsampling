@@ -1,3 +1,9 @@
+"""
+
+ToDo: NPT Simulations in LAMMPS
+
+BUG: LammpsEngine._put_boxvector(self, nparray) -> Inf Pressure
+"""
 import os
 import numpy as np
 import simtk.unit as u
@@ -154,20 +160,22 @@ class LammpsEngine(DynamicsEngine):
         snapshot = Snapshot.construct(
             engine=self,
             coordinates=np.ctypeslib.array(x).reshape(
-                (n_atoms, -1)) * u.nanometers,
+                (n_atoms, -1)) * u.angstrom,
             box_vectors=bv * u.nanometers,
             velocities=np.ctypeslib.array(v).reshape(
-                (n_atoms, -1)) * u.nanometers / u.picoseconds
+                (n_atoms, -1)) * u.angstrom / u.femtosecond
         )
 
         return snapshot
 
     def _put_coordinates(self, nparray):
+        nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("x", 1, 3, lmparray)
 
     def _put_velocities(self, nparray):
+        nparray = np.asarray(nparray.in_units_of(u.angstrom / u.femtosecond), dtype=np.float64)
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("v", 1, 3, lmparray)
@@ -235,14 +243,14 @@ class LammpsEngine(DynamicsEngine):
                 if self._current_snapshot is None or snapshot.kinetics is not self._current_snapshot.kinetics or snapshot.is_reversed != self._current_snapshot.is_reversed:
                     self._put_velocities(snapshot.velocities)
 
-            if snapshot.box_vectors is not None:
+            #if snapshot.box_vectors is not None:
                 # update box
-                self._put_boxvector(snapshot.box_vectors)
+                #self._put_boxvector(snapshot.box_vectors)
 
             # After the updates cache the new snapshot
             self._current_snapshot = snapshot
             # reinitialize LAMMPS (neighbour list etc) with the new coordinates
-            self._lmp.command('run 0')
+            #self._lmp.command('run 0')
 
     def run(self, steps):
         self._lmp.command('run ' + str(steps))
