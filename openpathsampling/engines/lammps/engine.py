@@ -139,6 +139,7 @@ class LammpsEngine(DynamicsEngine):
     def _get_snapshot(self, topology=None):
         lmp = self._lmp
         x = lmp.gather_atoms("x", 1, 3)
+        images = lmp.gather_atoms("image", 0, 3)
         v = lmp.gather_atoms("v", 1, 3)
 
         (xlo, ylo, zlo), \
@@ -151,14 +152,15 @@ class LammpsEngine(DynamicsEngine):
         self._box_center = bv[(0, 1, 2), (0, 1, 2)] + np.array([xlo, ylo, zlo])
         n_atoms = lmp.get_natoms()
         # n_spatial = len(x) / n_atoms
-
+        x = np.array(np.ctypeslib.array(x).reshape((n_atoms, -1)))
+        v = np.ctypeslib.array(v).reshape((n_atoms, -1))
+        images = np.ctypeslib.array(images).reshape((n_atoms, -1))
+        x += np.dot(images, bv)
         snapshot = Snapshot.construct(
             engine=self,
-            coordinates=np.ctypeslib.array(x).reshape(
-                (n_atoms, -1)) * u.angstrom,
+            coordinates=x * u.angstrom,
             box_vectors=bv * u.angstrom,
-            velocities=np.ctypeslib.array(v).reshape(
-                (n_atoms, -1)) * u.angstrom / u.femtosecond
+            velocities=v * u.angstrom / u.femtosecond
         )
 
         return snapshot
@@ -166,6 +168,12 @@ class LammpsEngine(DynamicsEngine):
     def _put_coordinates(self, nparray):
         nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
         lmp = self._lmp
+        # reset images to zeros
+        # ToDo: test performance set vs scatter
+        lmp.command('set group all image 0 0 0')
+        # images_zero = np.zeros((lmp.get_natoms(), 3), dtype=np.int32)
+        # lmparray_images = np.ctypeslib.as_ctypes(images_zero.ravel())
+        # lmp.scatter_atoms("image", 0, 3, lmparray_images)
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("x", 1, 3, lmparray)
 
@@ -245,7 +253,7 @@ class LammpsEngine(DynamicsEngine):
             # After the updates cache the new snapshot
             self._current_snapshot = snapshot
             # reinitialize LAMMPS (neighbour list etc) with the new coordinates
-            #self._lmp.command('run 0')
+            self._lmp.command('run 0')
 
     def run(self, steps):
         self._lmp.command('run ' + str(steps))
