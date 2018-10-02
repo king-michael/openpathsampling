@@ -156,7 +156,7 @@ class LammpsEngine(DynamicsEngine):
             engine=self,
             coordinates=np.ctypeslib.array(x).reshape(
                 (n_atoms, -1)) * u.angstrom,
-            box_vectors=bv * u.nanometers,
+            box_vectors=bv * u.angstrom,
             velocities=np.ctypeslib.array(v).reshape(
                 (n_atoms, -1)) * u.angstrom / u.femtosecond
         )
@@ -185,7 +185,7 @@ class LammpsEngine(DynamicsEngine):
         nparray : np.array
             box_vectors
         """
-        nparray = np.asarray(nparray, dtype=np.float64)
+        nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
         boxdim = nparray[np.arange(nparray.shape[0]),np.arange(nparray.shape[0])]
         if self._box_center is None:
             self._box_center = np.zeros(3)
