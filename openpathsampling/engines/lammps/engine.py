@@ -140,17 +140,12 @@ class LammpsEngine(DynamicsEngine):
         lmp = self._lmp
         x = lmp.gather_atoms("x", 1, 3)
         v = lmp.gather_atoms("v", 1, 3)
-        # pe = lmp.extract_compute('thermo_pe', 0, 0)
-        # ke = lmp.extract_compute('thermo_ke', 0, 0)
-        xlo = lmp.extract_global("boxxlo", 1)
-        xhi = lmp.extract_global("boxxhi", 1)
-        ylo = lmp.extract_global("boxylo", 1)
-        yhi = lmp.extract_global("boxyhi", 1)
-        zlo = lmp.extract_global("boxzlo", 1)
-        zhi = lmp.extract_global("boxzhi", 1)
-        xy = lmp.extract_global("xy", 1)
-        xz = lmp.extract_global("xz", 1)
-        yz = lmp.extract_global("yz", 1)
+
+        (xlo, ylo, zlo), \
+            (xhi, yhi, zhi), \
+            xy, yz, xz, \
+            periodicity, box_change = lmp.extract_box()
+
         bv = np.array(
             [[xhi - xlo, 0.0, 0.0], [xy, yhi - ylo, 0.0], [xz, yz, zhi - zlo]])
         self._box_center = bv[(0, 1, 2), (0, 1, 2)] + np.array([xlo, ylo, zlo])
