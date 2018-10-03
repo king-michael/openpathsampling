@@ -88,3 +88,4 @@ create a lammps executable for normal simulations::
    cmake -D LAMMPS_EXCEPTIONS=no -D BUILD_LIB=no -D BUILD_SHARED_LIBS=no -D BUILD_EXE=yes ../cmake
    make -j 6
    make install
+
