@@ -1,3 +1,22 @@
+"""
+
+Info
+----
+ - lammps.lammps : https://lammps.sandia.gov/doc/Python_library.html
+ - lammps.PyLammps : https://lammps.sandia.gov/doc/Howto_pylammps.html
+
+Todo
+----
+ - NPT Simulations in LAMMPS
+ - `n_frames_max` is never used
+ - implement LOGGING
+ - clean up uneded reinits of the system (start(), current_snapshot())
+
+BUGS
+----
+- LammpsEngine._put_boxvector(self, nparray) -> Inf Pressure
+"""
+
 import os
 import numpy as np
 import simtk.unit as u
@@ -103,6 +122,10 @@ class LammpsEngine(DynamicsEngine):
                 return None  # may later allow other ways
 
     def command(self, *args, **kwargs):
+        """
+                Runs a single LAMMPS command.
+                Parameters
+        """
         self._lmp.command(*args, **kwargs)
 
     def create(self):
@@ -113,6 +136,18 @@ class LammpsEngine(DynamicsEngine):
         self.initialized = True
 
     def _get_snapshot(self, topology=None):
+        """
+        Snapshot of the current state
+        Parameters
+        ----------
+        topology
+            Not used.
+
+        Returns
+        -------
+        snapshot : openpathsampling.engines.openmm.snapshot.Snapshot
+            Snapshot of the current state
+        """
         lmp = self._lmp
         x = lmp.gather_atoms("x", 1, 3)
         v = lmp.gather_atoms("v", 1, 3)
@@ -144,17 +179,41 @@ class LammpsEngine(DynamicsEngine):
         return snapshot
 
     def _put_coordinates(self, nparray):
+        """
+        Sets the coordinates of LAMMPS.
+
+        Parameters
+        ----------
+        nparray : numpy.ndarray
+            Array of size `(n_atoms, 3)` containing the
+        """
+
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("x", 1, 3, lmparray)
 
     def _put_velocities(self, nparray):
+        """
+        Sets the velocities of LAMMPS.
+
+        Parameters
+        ----------
+        nparray : numpy.ndarray
+            Array of size `(n_atoms, 3)` containing the
+        """
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("v", 1, 3, lmparray)
 
     @property
     def lammps(self):
+        """
+
+        Returns
+        -------
+        lammps.lammps
+            LAMMPS object used by the engine
+        """
         return self._lmp
 
     def to_dict(self):
@@ -166,6 +225,14 @@ class LammpsEngine(DynamicsEngine):
 
     @property
     def snapshot_timestep(self):
+        """
+        Extract the time step of the snapshot (`self.n_steps_per_frame * timestep`)
+
+        Returns
+        -------
+        float
+            `self.n_steps_per_frame * self.options['timestep']`
+        """
         return self.n_steps_per_frame * self.options['timestep']
 
     def _build_current_snapshot(self):
@@ -173,6 +240,13 @@ class LammpsEngine(DynamicsEngine):
 
     @property
     def current_snapshot(self):
+        """
+        Getter and setter for the current snapshot.
+
+        Returns
+        -------
+        self._current_snapshot : openpathsampling.engines.openmm.snapshot.Snapshot
+        """
         if self._current_snapshot is None:
             self._current_snapshot = self._build_current_snapshot()
 
@@ -197,18 +271,45 @@ class LammpsEngine(DynamicsEngine):
             self._current_snapshot = snapshot
 
     def run(self, steps):
+        """
+        Run the simulation for `steps`
+
+        Parameters
+        ----------
+        steps : int
+        """
         self._lmp.command('run ' + str(steps))
 
     def generate_next_frame(self):
+        """
+        Takes the (previously set) `current_snapshot` and generates the next saved frame,
+        i.e., it performs `n_steps_per_frame` individual time steps.
+        """
         self.run(self.n_steps_per_frame)
         self._current_snapshot = None
         return self.current_snapshot
 
     @property
     def kinetics(self):
+        """
+        Container for velocities.
+        As container feature in `engines.features.kinetics and `engines.features.shared`.
+
+        Returns
+        -------
+        openpathsampling.engines.features.kinetics.KineticContainer
+        """
         return self.current_snapshot.kinetics
 
     @property
     def statics(self):
+        """
+        Combination of coordinates and box vectors.
+        As container feature in `engines.features.statics` and `engines.features.shared`.
+
+        Returns
+        -------
+        openpathsampling.engines.features.kinetics.StaticContainer
+        """
         return self.current_snapshot.statics
 
