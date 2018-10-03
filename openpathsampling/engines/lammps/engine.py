@@ -5,6 +5,10 @@ Info
  - lammps.lammps : https://lammps.sandia.gov/doc/Python_library.html
  - lammps.PyLammps : https://lammps.sandia.gov/doc/Howto_pylammps.html
 
+Notes
+-----
+ - unit handling is trimmed to real unit system !
+
 Todo
 ----
  - NPT Simulations in LAMMPS
@@ -184,10 +188,10 @@ class LammpsEngine(DynamicsEngine):
         snapshot = Snapshot.construct(
             engine=self,
             coordinates=np.ctypeslib.array(x).reshape(
-                (n_atoms, -1)) * u.nanometers,
-            box_vectors=bv * u.nanometers,
+                (n_atoms, -1)) * u.angstrom,
+            box_vectors=bv * u.angstrom,
             velocities=np.ctypeslib.array(v).reshape(
-                (n_atoms, -1)) * u.nanometers / u.picoseconds
+                (n_atoms, -1)) * u.angstrom / u.femtosecond
         )
 
         return snapshot
@@ -201,7 +205,10 @@ class LammpsEngine(DynamicsEngine):
         nparray : numpy.ndarray
             Array of size `(n_atoms, 3)` containing the
         """
-
+        if type(nparray) ==  u.quantity.Quantity:
+            nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
+        else:
+            nparray = np.asarray(nparray, dtype=np.float64)
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("x", 1, 3, lmparray)
@@ -215,6 +222,10 @@ class LammpsEngine(DynamicsEngine):
         nparray : numpy.ndarray
             Array of size `(n_atoms, 3)` containing the
         """
+        if type(nparray) ==  u.quantity.Quantity:
+            nparray = np.asarray(nparray.in_units_of(u.angstrom / u.femtosecond), dtype=np.float64)
+        else:
+            nparray = np.asarray(nparray, dtype=np.float64)
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("v", 1, 3, lmparray)

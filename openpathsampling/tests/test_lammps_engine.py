@@ -12,7 +12,7 @@ from nose.tools import (assert_equal)
 import numpy as np
 import os
 from openpathsampling.engines import lammps as ops_lammps
-
+import simtk.unit as u
 from .test_helpers import (
     true_func, data_filename,
     assert_equal_array_array,
@@ -82,4 +82,5 @@ class TestLAMMPSEngine(object):
         """Test if we handle units correctly"""
         snap = self.engine._get_snapshot()
         template = ops_lammps.snapshot_from_pdb(self.pdb_file)
-        assert_equal_array_array(snap.coordinates, template.coordinates)
+        assert_equal_array_array(snap.coordinates.in_units_of(u.angstrom),
+                                 template.coordinates.in_units_of(u.angstrom))
