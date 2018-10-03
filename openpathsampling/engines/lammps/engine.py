@@ -1,7 +1,16 @@
 """
 
-ToDo: NPT Simulations in LAMMPS
-ToDo: `n_frames_max` is never used
+Info
+----
+ - lammps.lammps : https://lammps.sandia.gov/doc/Python_library.html
+ - lammps.PyLammps : https://lammps.sandia.gov/doc/Howto_pylammps.html
+
+Todo
+----
+ - NPT Simulations in LAMMPS
+ - `n_frames_max` is never used
+ - implement LOGGING
+ - clean up uneded reinits of the system (start(), current_snapshot())
 
 BUGS
 ----
@@ -25,6 +34,8 @@ import sys
 if sys.version_info > (3,):
     basestring = str
 
+import logging
+logger = logging.getLogger('openpathsampling.engine.LAMMPS')
 
 class LammpsEngine(DynamicsEngine):
     """OpenMM dynamics engine based on a openmmtools.testsystem object.
@@ -62,7 +73,7 @@ class LammpsEngine(DynamicsEngine):
 
             see: https://lammps.sandia.gov/doc/Run_options.html
         """
-
+        logger.debug("__init__()")
         self.inputs = inputs
 
         self.mdtraj_topology = None
@@ -114,6 +125,7 @@ class LammpsEngine(DynamicsEngine):
     @staticmethod
     def _get_topology(topology):
         # topology can be a filename or an MDTrajTopology
+        logger.debug("_get_topology()")
         try:
             import mdtraj as md
         except ImportError:
@@ -138,6 +150,7 @@ class LammpsEngine(DynamicsEngine):
         command : str
             LAMMPS command to be run.
         """
+        logger.debug("LAMMPS : {}".format(command))
         self._lmp.command(command)
 
     def create(self):
@@ -145,6 +158,7 @@ class LammpsEngine(DynamicsEngine):
         Create the final OpenMMEngine
 
         """
+        logger.debug("Create")
         self.initialized = True
 
     def _get_snapshot(self, topology=None):
@@ -160,6 +174,7 @@ class LammpsEngine(DynamicsEngine):
         snapshot : openpathsampling.engines.openmm.snapshot.Snapshot
             Snapshot of the current state
         """
+        logger.debug("_get_snapshot()")
         lmp = self._lmp
         x = lmp.gather_atoms("x", 1, 3)
         images = lmp.gather_atoms("image", 0, 3)
@@ -197,6 +212,7 @@ class LammpsEngine(DynamicsEngine):
         nparray : numpy.ndarray
             Array of size `(n_atoms, 3)` containing the
         """
+        logger.debug("_put_coordinates()")
         nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
         lmp = self._lmp
         # reset images to zeros
@@ -217,6 +233,7 @@ class LammpsEngine(DynamicsEngine):
         nparray : numpy.ndarray
             Array of size `(n_atoms, 3)` containing the
         """
+        logger.debug("_put_velocities()")
         nparray = np.asarray(nparray.in_units_of(u.angstrom / u.femtosecond), dtype=np.float64)
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
@@ -298,6 +315,7 @@ class LammpsEngine(DynamicsEngine):
 
     @current_snapshot.setter
     def current_snapshot(self, snapshot):
+        logger.debug("current_snapshot()")
         if snapshot is not self._current_snapshot:
             if snapshot.statics is not None:
                 if self._current_snapshot is None or snapshot.statics is not self._current_snapshot.statics:
@@ -317,7 +335,8 @@ class LammpsEngine(DynamicsEngine):
             # After the updates cache the new snapshot
             self._current_snapshot = snapshot
             # reinitialize LAMMPS (neighbour list etc) with the new coordinates
-            self._lmp.command('run 0')
+            logger.debug("LAMMPS: run 0 pre yes")
+            self._lmp.command('run 0 pre yes')
 
     def run(self, steps):
         """
@@ -327,7 +346,27 @@ class LammpsEngine(DynamicsEngine):
         ----------
         steps : int
         """
+        logger.debug("LAMMPS: run {}".format(steps))
         self._lmp.command('run ' + str(steps))
+
+    def start(self, snapshot=None):
+        """
+        Run before each trajectory.
+        """
+        logger.debug("start()")
+        if snapshot is not None:
+            self.current_snapshot = snapshot
+        # resets the timestep in LAMMPS (also for computes / fixes etc)
+        self._lmp.command('reset_timestep 0')
+        # build neighbor list etcs
+        self._lmp.command('run 0 pre yes')
+
+    def stop(self, trajectory):
+        """Nothing special needs to be done for direct-control simulations
+        when you hit a stop condition.
+        """
+        logger.debug("stop()")
+        self._lmp.command('run 0 post yes')
 
     def generate_next_frame(self):
         """
@@ -335,8 +374,8 @@ class LammpsEngine(DynamicsEngine):
         i.e., it performs `n_steps_per_frame` individual time steps.
         """
         # disable pre & post processing for continues runs
-        # self._lmp.command('run ' + str(self.n_steps_per_frame) + ' pre no post no')
-        self.run(self.n_steps_per_frame)
+        logger.debug("generate_next_frame()")
+        self._lmp.command('run ' + str(self.n_steps_per_frame) + ' pre no post no')
         self._current_snapshot = None
         return self.current_snapshot
 
@@ -392,6 +431,7 @@ class LammpsEngine(DynamicsEngine):
             max number of force/energy evaluations
 
         """
+        logger.debug("minimize()")
         self._lmp.commands_list(["min_style cg",
                                  "min_modify line quadratic",
                                  "minimize {etol} {ftol} {maxiter} {maxeval}".format(
