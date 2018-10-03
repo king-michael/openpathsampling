@@ -1,9 +1,13 @@
 """
 
 ToDo: NPT Simulations in LAMMPS
+ToDo: `n_frames_max` is never used
 
-BUG: LammpsEngine._put_boxvector(self, nparray) -> Inf Pressure
+BUGS
+----
+- LammpsEngine._put_boxvector(self, nparray) -> Inf Pressure
 """
+
 import os
 import numpy as np
 import simtk.unit as u
@@ -126,8 +130,15 @@ class LammpsEngine(DynamicsEngine):
             else:
                 return None  # may later allow other ways
 
-    def command(self, *args, **kwargs):
-        self._lmp.command(*args, **kwargs)
+    def command(self, command):
+        """
+        Runs a single LAMMPS command.
+        Parameters
+        ----------
+        command : str
+            LAMMPS command to be run.
+        """
+        self._lmp.command(command)
 
     def create(self):
         """
@@ -137,6 +148,18 @@ class LammpsEngine(DynamicsEngine):
         self.initialized = True
 
     def _get_snapshot(self, topology=None):
+        """
+        Snapshot of the current state
+        Parameters
+        ----------
+        topology
+            Not used.
+
+        Returns
+        -------
+        snapshot : openpathsampling.engines.openmm.snapshot.Snapshot
+            Snapshot of the current state
+        """
         lmp = self._lmp
         x = lmp.gather_atoms("x", 1, 3)
         images = lmp.gather_atoms("image", 0, 3)
@@ -166,6 +189,14 @@ class LammpsEngine(DynamicsEngine):
         return snapshot
 
     def _put_coordinates(self, nparray):
+        """
+        Sets the coordinates of LAMMPS.
+
+        Parameters
+        ----------
+        nparray : numpy.ndarray
+            Array of size `(n_atoms, 3)` containing the
+        """
         nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
         lmp = self._lmp
         # reset images to zeros
@@ -178,6 +209,14 @@ class LammpsEngine(DynamicsEngine):
         lmp.scatter_atoms("x", 1, 3, lmparray)
 
     def _put_velocities(self, nparray):
+        """
+        Sets the velocities of LAMMPS.
+
+        Parameters
+        ----------
+        nparray : numpy.ndarray
+            Array of size `(n_atoms, 3)` containing the
+        """
         nparray = np.asarray(nparray.in_units_of(u.angstrom / u.femtosecond), dtype=np.float64)
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
@@ -194,18 +233,25 @@ class LammpsEngine(DynamicsEngine):
             box_vectors
         """
         nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
-        boxdim = nparray[np.arange(nparray.shape[0]),np.arange(nparray.shape[0])]
+        boxdim = nparray[np.arange(nparray.shape[0]), np.arange(nparray.shape[0])]
         if self._box_center is None:
             self._box_center = np.zeros(3)
-        boxlo = - np.asarray(boxdim)  / 2.0 + self._box_center
+        boxlo = - np.asarray(boxdim) / 2.0 + self._box_center
         boxhi = - np.asarray(boxdim) / 2.0 + self._box_center
-        xy = float(nparray[1,0])
-        xz = float(nparray[2,1])
-        yz = float(nparray[2,1])
-        self._lmp.reset_box(boxlo,boxhi,xy,yz,xz)
+        xy = float(nparray[1, 0])
+        xz = float(nparray[2, 1])
+        yz = float(nparray[2, 1])
+        self._lmp.reset_box(boxlo, boxhi, xy, yz, xz)
 
     @property
     def lammps(self):
+        """
+
+        Returns
+        -------
+        lammps.lammps
+            LAMMPS object used by the engine
+        """
         return self._lmp
 
     def to_dict(self):
@@ -217,6 +263,15 @@ class LammpsEngine(DynamicsEngine):
 
     @property
     def snapshot_timestep(self):
+        """
+        Extract the time step of the snapshot (`self.n_steps_per_frame * timestep`)
+        If `self.options['timestep']` exist use this `timestep` else get `dt` from LAMMPS
+
+        Returns
+        -------
+        float
+            `self.n_steps_per_frame * self.options['timestep']`
+        """
         if 'timestep' not in self.options:
             return self.n_steps_per_frame * self._lmp.get_thermo('dt')
         return self.n_steps_per_frame * self.options['timestep']
@@ -226,6 +281,13 @@ class LammpsEngine(DynamicsEngine):
 
     @property
     def current_snapshot(self):
+        """
+        Getter and setter for the current snapshot.
+
+        Returns
+        -------
+        self._current_snapshot : openpathsampling.engines.openmm.snapshot.Snapshot
+        """
         if self._current_snapshot is None:
             self._current_snapshot = self._build_current_snapshot()
 
@@ -243,12 +305,14 @@ class LammpsEngine(DynamicsEngine):
                     self._put_coordinates(snapshot.coordinates)
 
             if snapshot.kinetics is not None:
-                if self._current_snapshot is None or snapshot.kinetics is not self._current_snapshot.kinetics or snapshot.is_reversed != self._current_snapshot.is_reversed:
+                if self._current_snapshot is None \
+                        or snapshot.kinetics is not self._current_snapshot.kinetics \
+                        or snapshot.is_reversed != self._current_snapshot.is_reversed:
                     self._put_velocities(snapshot.velocities)
 
-            #if snapshot.box_vectors is not None:
+            # if snapshot.box_vectors is not None:
                 # update box
-                #self._put_boxvector(snapshot.box_vectors)
+                # self._put_boxvector(snapshot.box_vectors)
 
             # After the updates cache the new snapshot
             self._current_snapshot = snapshot
@@ -256,20 +320,48 @@ class LammpsEngine(DynamicsEngine):
             self._lmp.command('run 0')
 
     def run(self, steps):
+        """
+        Run the simulation for `steps`
+
+        Parameters
+        ----------
+        steps : int
+        """
         self._lmp.command('run ' + str(steps))
 
     def generate_next_frame(self):
+        """
+        Takes the (previously set) `current_snapshot` and generates the next saved frame,
+        i.e., it performs `n_steps_per_frame` individual time steps.
+        """
         # disable pre & post processing for continues runs
-        self._lmp.command('run ' + str(self.n_steps_per_frame) + ' pre no post no')
+        # self._lmp.command('run ' + str(self.n_steps_per_frame) + ' pre no post no')
+        self.run(self.n_steps_per_frame)
         self._current_snapshot = None
         return self.current_snapshot
 
     @property
     def kinetics(self):
+        """
+        Container for velocities.
+        As container feature in `engines.features.kinetics and `engines.features.shared`.
+
+        Returns
+        -------
+        openpathsampling.engines.features.kinetics.KineticContainer
+        """
         return self.current_snapshot.kinetics
 
     @property
     def statics(self):
+        """
+        Combination of coordinates and box vectors.
+        As container feature in `engines.features.statics` and `engines.features.shared`.
+
+        Returns
+        -------
+        openpathsampling.engines.features.kinetics.StaticContainer
+        """
         return self.current_snapshot.statics
 
     def minimize(self, etol=1e-6, ftol=1e-6, maxiter=100, maxeval=1000):
