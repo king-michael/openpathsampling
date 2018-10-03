@@ -126,8 +126,8 @@ class LammpsEngine(DynamicsEngine):
             else:
                 return None  # may later allow other ways
 
-    def command(self, *args, **kwargs):
-        self._lmp.command(*args, **kwargs)
+    def command(self, command):
+        self._lmp.command(command)
 
     def create(self):
         """
