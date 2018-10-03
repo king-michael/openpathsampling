@@ -330,3 +330,40 @@ class LammpsEngine(DynamicsEngine):
         """
         return self.current_snapshot.statics
 
+    def minimize(self, etol=1e-6, ftol=1e-6, maxiter=100, maxeval=1000):
+        # type: (LammpsEngine, float, float, int, int) -> None
+        """
+        Energy minimization using a conjugated gradient.
+
+        LAMMPS-Syntax
+        -------------
+        `min_style cg`
+
+        `min_modify line quadratic`
+
+        `minimize {etol} {ftol} {maxiter} {maxiter}`
+
+        `reset_timestep 0`
+
+
+        Parameters
+        ----------
+        etol : float
+            stopping tolerance for force (force units)
+        ftol : float
+            stopping tolerance for force (force units)
+        maxiter : int
+            max iterations of minimizer
+        maxeval : int
+            max number of force/energy evaluations
+
+        """
+        self._lmp.commands_list(["min_style cg",
+                                 "min_modify line quadratic",
+                                 "minimize {etol} {ftol} {maxiter} {maxeval}".format(
+                                     etol=etol, ftol=ftol,
+                                     maxiter=maxiter, maxeval=maxeval),
+                                 "reset_timestep 0"])
+
+        # make sure that we get the minimized structure on request
+        self._current_snapshot = None
