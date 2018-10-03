@@ -241,12 +241,15 @@ class LammpsEngine(DynamicsEngine):
     def snapshot_timestep(self):
         """
         Extract the time step of the snapshot (`self.n_steps_per_frame * timestep`)
+        If `self.options['timestep']` exist use this `timestep` else get `dt` from LAMMPS
 
         Returns
         -------
         float
             `self.n_steps_per_frame * self.options['timestep']`
         """
+        if 'timestep' not in self.options:
+            return self.n_steps_per_frame * self._lmp.get_thermo('dt')
         return self.n_steps_per_frame * self.options['timestep']
 
     def _build_current_snapshot(self):
