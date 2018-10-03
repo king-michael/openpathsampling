@@ -121,12 +121,15 @@ class LammpsEngine(DynamicsEngine):
             else:
                 return None  # may later allow other ways
 
-    def command(self, *args, **kwargs):
+    def command(self, command):
         """
-                Runs a single LAMMPS command.
-                Parameters
+        Runs a single LAMMPS command.
+        Parameters
+        ----------
+        command : str
+            LAMMPS command to be run.
         """
-        self._lmp.command(*args, **kwargs)
+        self._lmp.command(command)
 
     def create(self):
         """
