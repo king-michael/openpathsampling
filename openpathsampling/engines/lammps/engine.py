@@ -118,7 +118,7 @@ class LammpsEngine(DynamicsEngine):
         self._current_kinetics = None
         self._current_statics = None
         self._current_box_vectors = None
-
+        self._box_center = None
         # TODO: so far we will always have an initialized system which we should change somehow
         self.initialized = True
 
@@ -182,6 +182,7 @@ class LammpsEngine(DynamicsEngine):
 
         bv = np.array(
             [[xhi - xlo, 0.0, 0.0], [xy, yhi - ylo, 0.0], [xz, yz, zhi - zlo]])
+        self._box_center = bv[(0, 1, 2), (0, 1, 2)] + np.array([xlo, ylo, zlo])
         n_atoms = lmp.get_natoms()
         # n_spatial = len(x) / n_atoms
 
@@ -229,6 +230,27 @@ class LammpsEngine(DynamicsEngine):
         lmp = self._lmp
         lmparray = np.ctypeslib.as_ctypes(nparray.ravel())
         lmp.scatter_atoms("v", 1, 3, lmparray)
+
+    def _put_boxvector(self, nparray):
+        """
+        Sets the box vector.
+        Needed for npt simulations.
+
+        Parameters
+        ----------
+        nparray : np.array
+            box_vectors
+        """
+        nparray = np.asarray(nparray.in_units_of(u.angstrom), dtype=np.float64)
+        boxdim = nparray[np.arange(nparray.shape[0]), np.arange(nparray.shape[0])]
+        if self._box_center is None:
+            self._box_center = np.zeros(3)
+        boxlo = - np.asarray(boxdim) / 2.0 + self._box_center
+        boxhi = - np.asarray(boxdim) / 2.0 + self._box_center
+        xy = float(nparray[1, 0])
+        xz = float(nparray[2, 1])
+        yz = float(nparray[2, 1])
+        self._lmp.reset_box(boxlo, boxhi, xy, yz, xz)
 
     @property
     def lammps(self):
