@@ -86,10 +86,7 @@ class LammpsEngine(DynamicsEngine):
         self._lmp = lammps(name=lmp_name, cmdargs=lmp_cmdargs)
 
         # Execute the give script
-        commands = inputs.splitlines()
-
-        for command in commands:
-            self._lmp.command(command)
+        self._lmp.commands_string(inputs)
 
         # self.command('compute thermo_ke all ke')
         self.command('run 0')
